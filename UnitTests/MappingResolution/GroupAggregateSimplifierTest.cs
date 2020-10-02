@@ -26,7 +26,7 @@ using Remotion.Linq.SqlBackend.SqlStatementModel;
 using Remotion.Linq.SqlBackend.SqlStatementModel.Resolved;
 using Remotion.Linq.SqlBackend.SqlStatementModel.Unresolved;
 using Remotion.Linq.SqlBackend.UnitTests.SqlStatementModel;
-using Rhino.Mocks;
+using Moq;
 
 namespace Remotion.Linq.SqlBackend.UnitTests.MappingResolution
 {
@@ -43,7 +43,7 @@ namespace Remotion.Linq.SqlBackend.UnitTests.MappingResolution
     private SqlStatement _simplifiableResolvedSqlStatement;
     private AggregationExpression _simplifiableUnresolvedProjection;
 
-    private IMappingResolutionStage _stageMock;
+    private Mock<IMappingResolutionStage> _stageMock;
     private MappingResolutionContext _context;
 
     private GroupAggregateSimplifier _groupAggregateSimplifier;
@@ -83,10 +83,10 @@ namespace Remotion.Linq.SqlBackend.UnitTests.MappingResolution
           new SqlTableReferenceExpression (_resolvedJoinedGroupingTable),
           AggregationModifier.Count);
 
-      _stageMock = MockRepository.GenerateStrictMock<IMappingResolutionStage> ();
+      _stageMock = new Mock<IMappingResolutionStage> (MockBehavior.Strict);
       _context = new MappingResolutionContext();
 
-      _groupAggregateSimplifier = new GroupAggregateSimplifier (_stageMock, _context);
+      _groupAggregateSimplifier = new GroupAggregateSimplifier (_stageMock.Object, _context);
     }
 
     [Test]
@@ -227,11 +227,9 @@ namespace Remotion.Linq.SqlBackend.UnitTests.MappingResolution
       }.GetSqlStatement ();
       var expression = new SqlSubStatementExpression (resolvedSqlStatement);
 
-      _stageMock.Replay();
-
       var result = _groupAggregateSimplifier.SimplifyIfPossible (expression, _simplifiableUnresolvedProjection);
 
-      _stageMock.VerifyAllExpectations();
+      _stageMock.Verify();
 
       Assert.That (result, Is.SameAs (expression));
     }
@@ -248,20 +246,22 @@ namespace Remotion.Linq.SqlBackend.UnitTests.MappingResolution
           new NamedExpression ("element", Expression.Constant ("e")), 
           AggregationModifier.Count);
       _stageMock
-          .Expect (mock => mock.ResolveAggregationExpression(Arg<Expression>.Is.Anything, Arg.Is (_context)))
-          .Return (preparedResolvedAggregate)
-          .WhenCalled (mi => {
-            var expectedReplacedAggregate = new AggregationExpression (
-                typeof (int),
-                ((NamedExpression) _associatedGroupingSelectExpression.ElementExpression).Expression, 
-                AggregationModifier.Count);
-            SqlExpressionTreeComparer.CheckAreEqualTrees (expectedReplacedAggregate, (Expression) mi.Arguments[0]);
-          });
-      _stageMock.Replay();
+          .Setup (mock => mock.ResolveAggregationExpression(It.IsAny<Expression>(), _context))
+          .Returns (preparedResolvedAggregate)
+          .Callback (
+              (Expression actualTree, IMappingResolutionContext _) =>
+              {
+                var expectedReplacedAggregate = new AggregationExpression (
+                    typeof (int),
+                    ((NamedExpression) _associatedGroupingSelectExpression.ElementExpression).Expression,
+                    AggregationModifier.Count);
+                SqlExpressionTreeComparer.CheckAreEqualTrees (expectedReplacedAggregate, actualTree);
+              })
+          .Verifiable();
 
       var result = _groupAggregateSimplifier.SimplifyIfPossible (expression, _simplifiableUnresolvedProjection);
 
-      _stageMock.VerifyAllExpectations();
+      _stageMock.Verify();
 
       Assert.That (_associatedGroupingSelectExpression.AggregationExpressions.Count, Is.EqualTo (1));
       Assert.That (
@@ -278,14 +278,12 @@ namespace Remotion.Linq.SqlBackend.UnitTests.MappingResolution
       Assert.That (_associatedGroupingSelectExpression.AggregationExpressions.Count, Is.EqualTo (0));
       var expression = new SqlSubStatementExpression (_simplifiableResolvedSqlStatement);
 
-      _stageMock.Replay ();
-
       var nonSimplifiableProjection = new AggregationExpression (
           typeof (int), 
           new SqlTableReferenceExpression (SqlStatementModelObjectMother.CreateSqlTable ()), AggregationModifier.Count);
       var result = _groupAggregateSimplifier.SimplifyIfPossible (expression, nonSimplifiableProjection);
 
-      _stageMock.VerifyAllExpectations ();
+      _stageMock.Verify();
 
       var expected = new SqlSubStatementExpression (_simplifiableResolvedSqlStatement);
       SqlExpressionTreeComparer.CheckAreEqualTrees (expected, result);

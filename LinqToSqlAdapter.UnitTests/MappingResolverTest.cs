@@ -27,7 +27,7 @@ using Remotion.Linq.SqlBackend.MappingResolution;
 using Remotion.Linq.SqlBackend.SqlStatementModel;
 using Remotion.Linq.SqlBackend.SqlStatementModel.Resolved;
 using Remotion.Linq.SqlBackend.SqlStatementModel.Unresolved;
-using Rhino.Mocks;
+using Moq;
 
 namespace Remotion.Linq.LinqToSqlAdapter.UnitTests
 {
@@ -280,12 +280,12 @@ namespace Remotion.Linq.LinqToSqlAdapter.UnitTests
     {
       var sqlEntityExpression = new SqlEntityDefinitionExpression (typeof (PersonTestClass), "p", null, e => e);
 
-      var memberInfoStub = MockRepository.GenerateStub<MemberInfo>();
+      var memberInfoStub = new Mock<MemberInfo>();
       memberInfoStub
-          .Stub (stub => stub.DeclaringType)
-          .Return (_unmappedType);
+          .SetupGet (stub => stub.DeclaringType)
+          .Returns (_unmappedType);
 
-      _mappingResolver.ResolveMemberExpression (sqlEntityExpression, memberInfoStub);
+      _mappingResolver.ResolveMemberExpression (sqlEntityExpression, memberInfoStub.Object);
     }
 
     [Test]
@@ -295,15 +295,15 @@ namespace Remotion.Linq.LinqToSqlAdapter.UnitTests
     {
       var sqlEntityExpression = new SqlEntityDefinitionExpression (typeof (PersonTestClass), "p", null, e => e);
 
-      var memberInfoStub = MockRepository.GenerateStub<MemberInfo>();
+      var memberInfoStub = new Mock<MemberInfo>();
       memberInfoStub
-          .Stub (stub => stub.DeclaringType)
-          .Return (typeof (PersonTestClass));
+          .SetupGet (stub => stub.DeclaringType)
+          .Returns (typeof (PersonTestClass));
       memberInfoStub
-          .Stub (stub => stub.Name)
-          .Return ("stub");
+          .SetupGet (stub => stub.Name)
+          .Returns ("stub");
 
-      _mappingResolver.ResolveMemberExpression (sqlEntityExpression, memberInfoStub);
+      _mappingResolver.ResolveMemberExpression (sqlEntityExpression, memberInfoStub.Object);
     }
 
     [Test]
